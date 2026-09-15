@@ -51,7 +51,8 @@ total and each count in numbers, three buttons that drill into a bucket grouped 
 yearly — a 12-month stacked chart plus a per-month completion-rate table. Drill-down rows have live
 checkboxes, so ticking an old task updates the bar immediately.
 
-**Settings** — 4 themes (Blossom, Midnight, Harbor, Daylight), alarm tune, notification tune.
+**Settings** — 4 themes (Blossom, Midnight, Harbor, Daylight), alarm sound, notification sound,
+the daily-summary switch, and alarm reliability diagnostics.
 
 ### Things worth knowing
 
@@ -60,10 +61,20 @@ checkboxes, so ticking an old task updates the bar immediately.
   drift.
 - **Editors auto-save on back.** There is no Save button; a `beforeRemove` listener persists
   whatever is on screen. Deleting sets an `abandoned` flag so the save doesn't resurrect the record.
-- **Long-press** a note or task row to delete it, with a confirmation. Long-pressing a task also
-  offers *Shift to tomorrow*.
+- **Long-press** a note or task row for a menu: share, pin/shift, mark done, delete. It is a themed
+  bottom sheet rather than `Alert`, because Android's dialog only has three button slots.
+- **Share** a note or task as `.txt`, `.pdf` or `.docx` — from the long-press menu or the share icon
+  in either editor. The `.docx` is a real OOXML package built with `fflate`, not renamed HTML.
 - **Shifting a task** records `movedTo` under the **original** date, so the day it came from is
-  never lost — the moved row shows a "from 13 Sep" badge and can be undone.
+  never lost — the moved row shows a "from 13 Sep" badge and can be undone. Reminders and the alarm
+  move with it.
+- **Repeats can have an end date.** Start and end rows appear for every repeating kind; clearing the
+  end date means "forever". An end before the start is clamped rather than rejected.
+- **Daily check-ins** at 1:00 PM and 9:30 PM carry the live count of what is still unfinished, plus
+  a Monday 8:00 AM note with last week's completion rate. Switch them off in Settings.
+- **Opening a task without a date** (from a note's linked chip) resolves to the day the task is
+  actually about — today if it runs today, else the next occurrence, else the most recent past one.
+  Defaulting to today made a task finished yesterday read back as *Not Started, Overdue*.
 
 ### The three statuses
 
@@ -96,12 +107,19 @@ The module is Android-only and absent in Expo Go, which cannot load custom nativ
 `requireOptionalNativeModule` returns null there and the app falls back to a notification-based
 alarm, so nothing crashes — it just is not a real alarm until you install the built app.
 
-Two Android permissions can be revoked by the user and will degrade this; Settings surfaces a
-prompt with a deep link when either is off:
+Three Android settings can degrade this. Settings re-checks all three on focus (they are changed
+while the app is backgrounded, so checking once at render was useless) and shows a deep link for
+each one that is off:
 
 - **Exact alarms** (`SCHEDULE_EXACT_ALARM` / `USE_EXACT_ALARM`) — without it, timing drifts.
 - **Full-screen intents** (`USE_FULL_SCREEN_INTENT`) — without it the alarm still rings, but as a
   notification rather than taking over the lock screen.
+- **Battery optimisation** — the most common cause of a late or missing alarm on Samsung/Xiaomi/
+  OnePlus builds, and the one people never think to check.
+
+Alarms are armed **outside** the notification-permission gate. They are AlarmManager entries plus a
+foreground service, and have no business disappearing because notifications were declined — which
+is exactly what used to happen.
 
 ## Sounds and alarm timing
 
@@ -119,22 +137,40 @@ Two pieces of native config make these work, both already in `app.json`:
 If you ever publish this, note Google Play restricts `USE_EXACT_ALARM` to genuine alarm/clock/
 calendar apps — fine for this one, but it needs justification at review.
 
-**Using your own phone's ringtones.** Settings → *Use a sound from my phone* deep-links to
-Android's own per-channel sound picker, which lists every ringtone and alarm tone on the device.
-Whatever you pick there wins over the bundled tune. There is no Expo API for reading the ringtone
-library, so this is the way to get full device-tune choice with no native module.
+**Channels are created natively, not by expo-notifications.** This is the load-bearing decision
+behind sound selection. `expo-notifications` can only point a channel at a bundled raw resource, so
+a tone chosen from the phone's ringtone library could never reach a reminder. Android's own
+`NotificationChannel.setSound(uri, attrs)` takes any Uri, so `Channels.kt` in the local module
+creates them instead, and `expo-notifications` merely schedules onto the resulting id. Its builder
+resolves `trigger.channelId` through the real `NotificationManager`, so a channel we made is found
+and used — and on Android ≥ 8 the channel's sound wins over anything set on the notification.
 
-**Changing a tune's file requires a new channel id.** Android notification channels are immutable
-once created, so re-creating one with a different sound is silently ignored. The ids in
-`src/lib/channels.ts` carry a version suffix — currently `-v2` — which must be bumped whenever a
-sound file changes. (v1 → v2 happened because v1's channels were created silent: `isExpoGo` was
-testing `executionEnvironment === 'storeClient'`, which is true for a dev build as well as Expo Go,
-so the sound was stripped from every channel. It now tests `appOwnership === 'expo'`, which is the
-only field that separates the two.)
+**Using your own phone's ringtones.** Settings → *From my phone* opens
+`RingtoneManager.ACTION_RINGTONE_PICKER` through the module's `OnActivityResult` handler and stores
+the returned `content://` URI. The same URI is handed to `AlarmService` for alarms, so one choice
+covers both paths. (The commonly cited "content URIs don't work for notification sounds" problem is
+about FileProvider URIs; MediaStore ringtone URIs are readable by SystemUI, and the module grants
+read permission anyway.)
+
+**Channel ids embed a hash of their sound.** Android channels are immutable once created — changing
+an existing channel's sound is silently ignored, which is the classic cause of "notifications arrive
+but make no sound". So `src/lib/channels.ts` derives the id from the chosen sound, meaning a new
+tone always lands on a brand-new channel. There is still a manual `VERSION` suffix — now `v3` — for
+changing anything *else* about a channel. Superseded channels are swept up by
+`deleteChannelsExcept`, or app settings would fill with a dead channel per tune ever tried.
+
+(v1 → v2 fixed channels created silent by an `isExpoGo` bug. v2 → v3 moved creation to the native
+module and made ids sound-addressed; v2 channels could carry a muted sound or an override that
+never applied, and neither is repairable in place.)
 
 The app still runs in Expo Go if you want a quick look (`npx expo start`) — everything works except
-notification sounds, which fall back to the system default. The in-app alarm ringer plays your
-chosen tune either way, since `expo-audio` plays bundled assets directly.
+custom notification sounds and device tones, which fall back to the system default. The in-app alarm
+ringer plays your chosen tune either way, since `expo-audio` plays bundled assets directly.
+
+**Previewing a tune** uses a generation token claimed *synchronously* before any `await`. The
+earlier version assigned the player to its ref only after awaiting `setAudioModeAsync`, so a second
+tap during that window created a second player and orphaned the first with no handle to stop it —
+which is why previews stacked and only closing the app silenced them.
 
 ## How it's built
 
@@ -147,7 +183,7 @@ app/                 expo-router routes
 src/
   store/             zustand + AsyncStorage persistence
   theme/             4 palettes + provider
-  lib/               date, recurrence, status, notifications, channels
+  lib/               date, recurrence, status, notifications, channels, digest, export
   components/        shared UI
 assets/sounds/       4 synthesised tunes (swap the files to use your own)
 ```
@@ -160,9 +196,21 @@ That's what lets you shift *today's* 5pm to 7pm without touching the rule, tick 
 and keep per-day statistics honest — from a few hundred bytes.
 
 **Notifications use a rolling window.** A recurring task generates reminders forever, so they can't
-all be scheduled. The app schedules the soonest 56 across the next 14 days and slides that window
-forward on every launch, foreground and edit. 56 stays under iOS's hard 64-request cap, so the same
-scheduler works unchanged if this ever ships there.
+all be scheduled. The app schedules the soonest across a sliding window and refreshes it on every
+launch, foreground and edit, under separate budgets so digests can never crowd out reminders:
+
+| | Horizon | Budget |
+| --- | --- | --- |
+| Reminders (T-30 / T-5) | 14 days | 96 |
+| Daily check-ins + Monday stats | 7 days | 40 |
+| Native alarms | 60 days | 100 |
+
+Alarms reach furthest because they are AlarmManager entries rather than pending notifications —
+nearly free, and an alarm that quietly expires because the app wasn't opened for a fortnight is the
+worst possible failure for the feature. Digests reach least far because today's copy carries a live
+count, so ticking a box rewrites the pending set. They are reconciled through one native
+`replaceAll` that diffs in memory and writes its store once; scheduling them individually meant
+rewriting that store per alarm, on the JS thread, every time a checkbox moved.
 
 ## Checks
 
