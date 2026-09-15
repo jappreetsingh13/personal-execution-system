@@ -39,8 +39,12 @@ if (!url) {
   process.exit(0);
 }
 
+// EAS serves the log brotli-compressed. Node's fetch transparently decompresses `content-encoding:
+// br`, so the bytes usually arrive as plain text already — only decompress when they genuinely are
+// still compressed, or we double-decompress and fail with ERR__ERROR_FORMAT_PADDING_2.
 const bytes = Buffer.from(await (await fetch(url)).arrayBuffer());
-const text = brotliDecompressSync(bytes).toString('utf8');
+const looksCompressed = bytes[0] !== 0x7b; // a decompressed log starts with '{' (NDJSON)
+const text = (looksCompressed ? brotliDecompressSync(bytes) : bytes).toString('utf8');
 
 const messages = text
   .split('\n')

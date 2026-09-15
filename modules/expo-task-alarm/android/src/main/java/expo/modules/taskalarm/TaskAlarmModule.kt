@@ -333,20 +333,22 @@ class TaskAlarmModule : Module() {
      * Ask to be exempted from battery optimisation. Falls back to the general settings list if the
      * direct request intent is unavailable (some OEM builds remove it).
      */
+    // Guarded with an `if` rather than an early `return@Function`: a Function's lambda is typed to
+    // return Any?, so a bare return is a type mismatch.
     Function("openBatteryOptimizationSettings") {
-      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return@Function
-
-      val direct = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-        data = Uri.parse("package:${context.packageName}")
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-      }
-      val started = runCatching { context.startActivity(direct) }.isSuccess
-      if (!started) {
-        runCatching {
-          context.startActivity(
-            Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-              .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-          )
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        val direct = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+          data = Uri.parse("package:${context.packageName}")
+          addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        val started = runCatching { context.startActivity(direct) }.isSuccess
+        if (!started) {
+          runCatching {
+            context.startActivity(
+              Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+          }
         }
       }
     }
