@@ -27,7 +27,7 @@ import { Sheet } from '@/components/Sheet';
 import { Button, Field, SectionTitle } from '@/components/ui';
 import { formatTime } from '@/lib/date';
 import { SKETCH_PENS, type SketchPenKey } from '@/lib/sketchPens';
-import { deleteAttachmentUris, saveImageAttachments } from '@/lib/attachments';
+import { saveImageAttachments } from '@/lib/attachments';
 import { describeRecurrence } from '@/lib/recurrence';
 import {
   HANDLE_SIZE,
@@ -38,10 +38,7 @@ import {
   fitScale,
   imageAt,
   onResizeHandle,
-  paperPath,
-  paperStroke,
   strokeBottom,
-  strokeToPath,
   toPage,
   toScreen,
   zoomAbout,
@@ -49,6 +46,7 @@ import {
   type Viewport,
 } from '@/lib/sketchGeom';
 import { GROW_BY, GROW_MARGIN } from '@/lib/sketchGeom';
+import { paperPath, paperStroke, strokeToPath } from '@/lib/sketchPaths';
 
 /**
  * The scribble page.
@@ -441,10 +439,20 @@ export default function SketchEditor() {
         if (!stylusOnly) {
           discardStroke();
           act.current.mode = 'none';
+          // Hand the interaction back, or the two-finger handlers below stay
+          // locked out for as long as the fingers are down.
+          release('draw');
         }
         return;
       }
-      if (act.current.owner !== null || e.numberOfTouches !== 1) return;
+      if (e.numberOfTouches !== 1) {
+        // Two fingers landed together. Invalidate the latch so onStart cannot
+        // fall through to the previous interaction's coordinates and tool type.
+        act.current.pointerId = null;
+        act.current.stylus = false;
+        return;
+      }
+      if (act.current.owner !== null) return;
       const touch = e.allTouches[0];
       // RNGH latches pointerType at ACTION_DOWN and never revisits it, so this
       // is the one moment the tool type can be read. (A palm that lands *before*
@@ -455,6 +463,9 @@ export default function SketchEditor() {
       act.current.downY = touch.y;
     })
     .onStart(() => {
+      // No latched pointer means this interaction did not begin as a clean
+      // single touch — leave it to the two-finger handlers.
+      if (act.current.pointerId === null) return;
       const mode = decideMode(act.current.downX, act.current.downY);
       if (mode === 'draw') {
         if (selectedId != null || !claim('draw')) return;
@@ -465,6 +476,14 @@ export default function SketchEditor() {
       }
       if (!claim(mode === 'pan' ? 'nav' : 'image')) return;
       act.current.mode = mode;
+    })
+    .onTouchesUp((e) => {
+      // Every finger gone: drop the latch so the next touch starts clean even if
+      // this gesture never activated and so never reached onFinalize.
+      if (e.numberOfTouches === 0) {
+        act.current.pointerId = null;
+        act.current.stylus = false;
+      }
     })
     .onTouchesMove((e) => {
       if (act.current.owner !== 'draw') return;

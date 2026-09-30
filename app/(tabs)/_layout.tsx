@@ -44,6 +44,13 @@ export default function TabsLayout() {
       screenOptions={{
         sceneStyle: { backgroundColor: t.bg },
         swipeEnabled: true,
+        // A pager would otherwise mount all five screens at launch, and
+        // Statistics is by far the most expensive to build. `lazy` defers each
+        // screen until it is needed; `lazyPreloadDistance: 1` still builds the
+        // neighbours, so there is something real to see mid-swipe rather than a
+        // blank page arriving under your finger.
+        lazy: true,
+        lazyPreloadDistance: 1,
       }}
     >
       <TopTabs.Screen
