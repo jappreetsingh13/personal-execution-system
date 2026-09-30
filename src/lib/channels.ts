@@ -38,8 +38,13 @@ export const isExpoGo = Constants.appOwnership === 'expo';
  */
 const VERSION = 'v3';
 
-/** Prefixes owned by this module — used to sweep away channels from superseded sound choices. */
-const CHANNEL_PREFIXES = ['reminder-', 'digest-', 'alarm-'];
+/**
+ * Prefixes owned by this module — used to sweep away channels from superseded sound choices.
+ *
+ * `bubbles` is here to *delete* it: the retired floating-note bubble created that channel, and it is
+ * never in the keep list, so every sweep removes it. Channels outlive the code that made them.
+ */
+const CHANNEL_PREFIXES = ['reminder-', 'digest-', 'alarm-', 'bubbles'];
 
 export const ALARM_TUNES: { id: AlarmTune; label: string; asset: number }[] = [
   {

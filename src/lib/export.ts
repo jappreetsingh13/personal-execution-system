@@ -4,6 +4,7 @@ import { File, Paths } from 'expo-file-system';
 import { strToU8, zipSync } from 'fflate';
 import type { Note, Task } from '@/types';
 import { IMPORTANCE_LABELS } from '@/theme/themes';
+import { stripNoteMarkup } from './noteColors';
 import { formatLongDate, formatTime } from './date';
 import { describeRecurrence } from './recurrence';
 
@@ -54,7 +55,7 @@ export function noteDoc(note: Note, tasks: Record<string, Task>): Doc {
   return {
     title: note.title.trim() || 'Untitled note',
     meta: [`Importance: ${IMPORTANCE_LABELS[note.importance]}`],
-    body: note.body,
+    body: stripNoteMarkup(note.body),
     sections: note.sections
       .filter((s) => s.title.trim() || s.body.trim())
       .map((s) => ({ title: s.title.trim() || 'Untitled section', body: s.body })),

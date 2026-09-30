@@ -10,6 +10,7 @@ import { ThemeProvider, useTheme } from '@/theme/ThemeProvider';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useNotesStore } from '@/store/useNotesStore';
 import { useTasksStore } from '@/store/useTasksStore';
+import { useSketchesStore } from '@/store/useSketchesStore';
 import {
   installNotificationHandler,
   invalidateScheduleCache,
@@ -19,6 +20,7 @@ import {
   snoozeAlarm,
 } from '@/lib/notifications';
 import { ensureChannels } from '@/lib/channels';
+import { syncWidget } from '@/lib/widget';
 import { Loading } from '@/components/ui';
 import TaskAlarm from '../modules/expo-task-alarm';
 
@@ -45,6 +47,10 @@ function RootNavigator() {
           options={{ presentation: 'modal', title: 'Note' }}
         />
         <Stack.Screen
+          name="sketch/[id]"
+          options={{ presentation: 'modal', title: 'Sketch' }}
+        />
+        <Stack.Screen
           name="task/[id]"
           options={{ presentation: 'modal', title: 'Task' }}
         />
@@ -61,7 +67,8 @@ function Bootstrap({ children }: { children: React.ReactNode }) {
   const settingsHydrated = useSettingsStore((s) => s.hydrated);
   const notesHydrated = useNotesStore((s) => s.hydrated);
   const tasksHydrated = useTasksStore((s) => s.hydrated);
-  const hydrated = settingsHydrated && notesHydrated && tasksHydrated;
+  const sketchesHydrated = useSketchesStore((s) => s.hydrated);
+  const hydrated = settingsHydrated && notesHydrated && tasksHydrated && sketchesHydrated;
 
   const bootstrapped = useRef(false);
 
@@ -76,6 +83,13 @@ function Bootstrap({ children }: { children: React.ReactNode }) {
       useSettingsStore.getState().setNotificationsGranted(granted);
       if (granted) scheduleSync(0);
     })().catch((err) => console.warn('[bootstrap] failed', err));
+
+    // The floating-note bubble is gone, but its long-lived launcher shortcut and
+    // posted notification survive the update that removed it. No-op once swept.
+    TaskAlarm.removeNoteBubble();
+
+    // Paint the widget with the restored data as early as possible.
+    syncWidget();
   }, [hydrated]);
 
   // The scheduling window is relative to now, so slide it forward whenever the
@@ -87,13 +101,17 @@ function Bootstrap({ children }: { children: React.ReactNode }) {
       if (state !== 'active') return;
       invalidateScheduleCache();
       scheduleSync(250);
+      syncWidget();
     });
     return () => sub.remove();
   }, []);
 
   // Any task or settings change can invalidate what is scheduled.
   useEffect(() => {
-    const unsubTasks = useTasksStore.subscribe(() => scheduleSync());
+    const unsubTasks = useTasksStore.subscribe(() => {
+      scheduleSync();
+      syncWidget();
+    });
     const unsubSettings = useSettingsStore.subscribe(() => scheduleSync());
     return () => {
       unsubTasks();

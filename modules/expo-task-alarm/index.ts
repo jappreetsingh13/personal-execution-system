@@ -78,6 +78,7 @@ declare class TaskAlarmNativeModule extends NativeModule<TaskAlarmEvents> {
   openFullScreenIntentSettings(): void;
   openBatteryOptimizationSettings(): void;
   openNotificationSettings(): void;
+  removeNoteBubble(): void;
 }
 
 /**
@@ -167,6 +168,15 @@ export const TaskAlarm = {
   },
   openNotificationSettings(): void {
     native?.openNotificationSettings();
+  },
+
+  /**
+   * Sweep the launcher shortcut and notification left behind by the removed
+   * floating-note bubble. A long-lived dynamic shortcut outlives the app update
+   * that deleted the feature, so this has to run once on a device that saw it.
+   */
+  removeNoteBubble(): void {
+    native?.removeNoteBubble();
   },
 
   addRingingListener(fn: (alarm: RingingAlarm) => void) {

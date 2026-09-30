@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type {
+  Attachment,
   DateKey,
   Importance,
   OccurrenceState,
@@ -12,6 +13,7 @@ import type {
 import { makeId } from '@/lib/id';
 import { occKey } from '@/lib/status';
 import { addDays, todayKey } from '@/lib/date';
+import { deleteAttachmentFiles } from '@/lib/attachments';
 
 export type TaskDraft = {
   title: string;
@@ -23,11 +25,12 @@ export type TaskDraft = {
   endDate?: DateKey;
   linkedNoteIds: string[];
   sections: Section[];
+  attachments: Attachment[];
   remindersEnabled: boolean;
   alarmEnabled: boolean;
 };
 
-/** v1 stored a single `linkedNoteId` and had no sections. */
+/** v1 stored a single `linkedNoteId`, had no sections and no attachments. */
 function migrateTask(raw: unknown): Task {
   const t = raw as Task & { linkedNoteId?: string };
   const fromSingle = t.linkedNoteId ? [t.linkedNoteId] : [];
@@ -35,6 +38,7 @@ function migrateTask(raw: unknown): Task {
     ...t,
     linkedNoteIds: Array.isArray(t.linkedNoteIds) ? t.linkedNoteIds : fromSingle,
     sections: Array.isArray(t.sections) ? t.sections : [],
+    attachments: Array.isArray(t.attachments) ? t.attachments : [],
   };
 }
 
@@ -115,7 +119,13 @@ export const useTasksStore = create<TasksState>()(
       deleteTask: (id) =>
         set((s) => {
           const tasks = { ...s.tasks };
+          const removed = tasks[id];
           delete tasks[id];
+          // The copied attachment files are unreferenced the moment the task is
+          // gone — sweep them too, or app storage leaks forever.
+          if (removed?.attachments?.length) {
+            void deleteAttachmentFiles(removed.attachments);
+          }
           // Drop every deviation belonging to this task so storage doesn't leak.
           const occurrences: Record<string, OccurrenceState> = {};
           const prefix = `${id}|`;
@@ -296,6 +306,7 @@ export function emptyTaskDraft(): TaskDraft {
     startDate: todayKey(),
     linkedNoteIds: [],
     sections: [],
+    attachments: [],
     remindersEnabled: true,
     alarmEnabled: false,
   };

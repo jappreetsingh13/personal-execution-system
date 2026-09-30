@@ -42,7 +42,8 @@
           ]
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      "expo-speech-recognition"
     ],
     "experiments": {
       "typedRoutes": true

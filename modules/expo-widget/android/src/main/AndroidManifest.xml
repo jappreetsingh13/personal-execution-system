@@ -1,0 +1,19 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!-- The home-screen streak widget. The system is the only sender of
+             APPWIDGET_UPDATE, so exported stays false. -->
+        <receiver
+            android:name=".StreakWidgetProvider"
+            android:exported="false"
+            android:label="Todos streak">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/streak_widget_info" />
+        </receiver>
+    </application>
+
+</manifest>

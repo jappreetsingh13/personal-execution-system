@@ -12,6 +12,7 @@ import {
 import { useTheme } from '@/theme/ThemeProvider';
 import { THEME_LIST } from '@/theme/themes';
 import { Button, Card, SectionTitle } from '@/components/ui';
+import { TabHeader } from '@/components/TabHeader';
 import {
   ALARM_TUNES,
   NOTIFICATION_TUNES,
@@ -21,6 +22,7 @@ import {
   tuneSource,
 } from '@/lib/channels';
 import { invalidateScheduleCache, scheduleSync } from '@/lib/notifications';
+import { StreakWidget } from '../../modules/expo-widget';
 import TaskAlarm from '../../modules/expo-task-alarm';
 
 /** How long a preview plays before stopping itself. Alarm tunes run ~27s; nobody needs all of it. */
@@ -62,6 +64,15 @@ export default function SettingsScreen() {
   const setNotificationSound = useSettingsStore((s) => s.setNotificationSound);
   const digestsEnabled = useSettingsStore((s) => s.digestsEnabled);
   const setDigestsEnabled = useSettingsStore((s) => s.setDigestsEnabled);
+
+  // Re-read on focus: a widget can be added or removed only while this app is
+  // in the background (the pin dialog is the one exception).
+  const [widgetAdded, setWidgetAdded] = useState(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (StreakWidget.available) setWidgetAdded(StreakWidget.isAdded());
+    }, []),
+  );
 
   const [previewing, setPreviewing] = useState<string | null>(null);
 
@@ -212,10 +223,12 @@ export default function SettingsScreen() {
   const allGood = diagnostics.exact && diagnostics.fullScreen && diagnostics.battery;
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: t.bg }}
-      contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 90, gap: 24 }}
-    >
+    <View style={{ flex: 1, backgroundColor: t.bg }}>
+      <TabHeader title="Settings" />
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 90, gap: 24 }}
+      >
       {/* ---- Theme ---- */}
       <View style={{ gap: 12 }}>
         <SectionTitle>Theme</SectionTitle>
@@ -341,6 +354,51 @@ export default function SettingsScreen() {
         </Card>
       </View>
 
+      {/* ---- Home screen widget ---- */}
+      {StreakWidget.available ? (
+        <View style={{ gap: 12 }}>
+          <SectionTitle>Home screen widget</SectionTitle>
+          <Card style={{ padding: 14, gap: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Ionicons name="flame-outline" size={20} color={t.accent} />
+              <Text style={{ flex: 1, color: t.text, fontSize: 15.5, fontWeight: '600' }}>
+                Streak widget
+              </Text>
+              {widgetAdded ? (
+                <Ionicons name="checkmark-circle" size={19} color={t.accent} />
+              ) : null}
+            </View>
+            <Text style={{ color: t.textDim, fontSize: 12.5, lineHeight: 18 }}>
+              A flame, your day streak, and today's progress — with a fresh nudge every 4 hours to
+              pull you back in.
+            </Text>
+            {widgetAdded ? (
+              <Text style={{ color: t.textDim, fontSize: 12.5, lineHeight: 18 }}>
+                It's on your home screen. Removed it by mistake? Use the manual path below — the
+                widget can only be added once.
+              </Text>
+            ) : (
+              <Button
+                label="Add widget to home screen"
+                icon="add-circle-outline"
+                onPress={() => {
+                  if (!StreakWidget.requestPin()) {
+                    Alert.alert(
+                      'Add it manually',
+                      'Long-press an empty spot on your home screen, open Widgets, find Todos, and drag the streak widget out.',
+                    );
+                  }
+                }}
+              />
+            )}
+            <Text style={{ color: t.textFaint, fontSize: 12, lineHeight: 17 }}>
+              If the button does nothing on your phone: long-press the home screen → Widgets →
+              Todos, then drag the streak widget out.
+            </Text>
+          </Card>
+        </View>
+      ) : null}
+
       {/* ---- Alarm reliability ---- */}
       {alarmReady ? (
         <View style={{ gap: 12 }}>
@@ -408,7 +466,8 @@ export default function SettingsScreen() {
           </View>
         </Card>
       ) : null}
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 

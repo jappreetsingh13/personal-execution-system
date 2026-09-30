@@ -20,6 +20,21 @@ export type Section = {
   collapsed?: boolean;
 };
 
+/**
+ * A file copied into the app's own storage and attached to a task. Images get
+ * thumbnails; everything else opens through the system viewer.
+ */
+export type Attachment = {
+  id: string;
+  kind: 'image' | 'file';
+  /** A file:// URI inside the app's attachments directory — safe to keep forever. */
+  uri: string;
+  /** Original file name, for display and for the system viewer. */
+  name: string;
+  mimeType?: string;
+  size?: number;
+};
+
 export type Note = {
   id: string;
   title: string;
@@ -28,6 +43,8 @@ export type Note = {
   /** Many-to-many: a note can back any number of tasks. */
   linkedTaskIds: string[];
   sections: Section[];
+  /** Photos and files copied into app storage when they were attached. */
+  attachments: Attachment[];
   pinned?: boolean;
   createdAt: number;
   updatedAt: number;
@@ -66,6 +83,8 @@ export type Task = {
   /** Many-to-many: a task can reference any number of notes. */
   linkedNoteIds: string[];
   sections: Section[];
+  /** Photos and files copied into app storage when they were attached. */
+  attachments: Attachment[];
   /** Fire the T-30min and T-5min reminders. */
   remindersEnabled: boolean;
   /** Also fire an alarm at T-0 that opens the full-screen ringer. */
@@ -123,6 +142,65 @@ export type Occurrence = {
   completedAt?: number;
   /** Epoch ms of this occurrence's scheduled moment. */
   timestamp: number;
+};
+
+// ---------------------------------------------------------------------------
+// Sketches
+// ---------------------------------------------------------------------------
+
+/** What a stroke is. `pen` is freehand; the rest are drag-out shapes. */
+export type SketchStrokeKind = 'pen' | 'line' | 'rect' | 'ellipse' | 'arrow';
+
+export type SketchStroke = {
+  id: string;
+  kind: SketchStrokeKind;
+  /** One of the 6 pen colours (see lib/sketchPens.ts SKETCH_PENS). */
+  color: string;
+  /** Stroke width in page units. */
+  size: number;
+  /** Freehand points, in page coordinates. */
+  points?: { x: number; y: number }[];
+  /** Shape extents, in page coordinates. */
+  x0?: number;
+  y0?: number;
+  x1?: number;
+  y1?: number;
+};
+
+/** A photo placed on the page, drawn under the strokes. */
+export type SketchImage = {
+  id: string;
+  uri: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+/** Page ruling, drawn under the images and strokes in page coordinates. */
+export type SketchPaper = 'plain' | 'ruled' | 'grid' | 'dots';
+
+/** A free-form scribble page — the stylus/notability-style tab. */
+export type Sketch = {
+  id: string;
+  title: string;
+  strokes: SketchStroke[];
+  images: SketchImage[];
+  paper: SketchPaper;
+  /**
+   * Page size in page units. Stored per sketch because the page grows downwards
+   * as you fill it, so two sketches are rarely the same height — and because a
+   * stroke's coordinates are meaningless without the page they were drawn on.
+   */
+  pageW: number;
+  pageH: number;
+  importance: Importance;
+  pinned?: boolean;
+  /** Links are stored on the sketch side and shown there. */
+  linkedNoteIds: string[];
+  linkedTaskIds: string[];
+  createdAt: number;
+  updatedAt: number;
 };
 
 // ---------------------------------------------------------------------------

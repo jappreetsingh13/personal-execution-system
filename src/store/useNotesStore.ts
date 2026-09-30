@@ -1,8 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import type { Importance, Note, Section } from '@/types';
+import type { Attachment, Importance, Note, Section } from '@/types';
 import { makeId } from '@/lib/id';
+import { deleteAttachmentFiles } from '@/lib/attachments';
+import { stripNoteMarkup } from '@/lib/noteColors';
 
 export type NoteDraft = {
   title: string;
@@ -10,11 +12,14 @@ export type NoteDraft = {
   importance: Importance;
   linkedTaskIds: string[];
   sections: Section[];
+  attachments: Attachment[];
 };
 
 /**
- * v1 stored a single `linkedTaskId` and had no sections. Migrate rather than
- * reset, so notes written before the many-to-many change survive an update.
+ * v1 stored a single `linkedTaskId` and had no sections or attachments.
+ * Migrate rather than reset, so notes written before the many-to-many change
+ * survive an update. Body markers from the retired colour-pen feature are
+ * stripped here too — the pen cleanup runs once per note on load.
  */
 function migrateNote(raw: unknown): Note {
   const n = raw as Note & { linkedTaskId?: string };
@@ -23,6 +28,8 @@ function migrateNote(raw: unknown): Note {
     ...n,
     linkedTaskIds: Array.isArray(n.linkedTaskIds) ? n.linkedTaskIds : fromSingle,
     sections: Array.isArray(n.sections) ? n.sections : [],
+    attachments: Array.isArray(n.attachments) ? n.attachments : [],
+    body: typeof n.body === 'string' ? stripNoteMarkup(n.body) : n.body,
   };
 }
 
@@ -74,7 +81,13 @@ export const useNotesStore = create<NotesState>()(
       deleteNote: (id) =>
         set((s) => {
           const next = { ...s.notes };
+          const removed = next[id];
           delete next[id];
+          // The copied attachment files are unreferenced the moment the note is
+          // gone — sweep them too, or app storage leaks forever.
+          if (removed?.attachments?.length) {
+            void deleteAttachmentFiles(removed.attachments);
+          }
           return { notes: next };
         }),
 

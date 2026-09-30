@@ -1,0 +1,19 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.streakwidget'
+version = '0.1.0'
+
+android {
+  namespace "expo.modules.streakwidget"
+  defaultConfig {
+    minSdkVersion 24
+    // expo-module-gradle-plugin builds a Maven publication for every module and
+    // requires both of these — omitting versionName fails configuration with
+    // "'android.defaultConfig.versionName' is not defined".
+    versionCode 1
+    versionName '0.1.0'
+  }
+}

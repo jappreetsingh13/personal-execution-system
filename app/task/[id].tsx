@@ -13,7 +13,7 @@ import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { DateKey, Importance, Recurrence, Section } from '@/types';
+import type { Attachment, DateKey, Importance, Recurrence, Section } from '@/types';
 import { emptyTaskDraft, useTasksStore, type TaskDraft } from '@/store/useTasksStore';
 import { useNotesStore } from '@/store/useNotesStore';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -21,6 +21,7 @@ import { OVERDUE_COLOR, STATUS_COLORS, STATUS_LABELS } from '@/theme/themes';
 import { ColorPicker } from '@/components/ColorPicker';
 import { LinkPicker, type LinkOption } from '@/components/LinkPicker';
 import { SectionsEditor } from '@/components/Sections';
+import { AttachmentsEditor } from '@/components/Attachments';
 import { useShareSheet } from '@/components/ShareSheet';
 import { Button, Card, Field, SectionTitle } from '@/components/ui';
 import { taskDoc } from '@/lib/export';
@@ -96,6 +97,7 @@ export default function TaskEditor() {
         endDate: task.endDate,
         linkedNoteIds: task.linkedNoteIds,
         sections: task.sections,
+        attachments: task.attachments,
         remindersEnabled: task.remindersEnabled,
         alarmEnabled: task.alarmEnabled,
       };
@@ -114,6 +116,7 @@ export default function TaskEditor() {
   const [endDate, setEndDate] = useState<DateKey | undefined>(initial.endDate);
   const [linkedNoteIds, setLinkedNoteIds] = useState<string[]>(initial.linkedNoteIds);
   const [sections, setSections] = useState<Section[]>(initial.sections);
+  const [attachments, setAttachments] = useState<Attachment[]>(initial.attachments);
   const [remindersEnabled, setReminders] = useState(initial.remindersEnabled);
   const [alarmEnabled, setAlarm] = useState(initial.alarmEnabled);
 
@@ -154,6 +157,7 @@ export default function TaskEditor() {
     endDate,
     linkedNoteIds,
     sections,
+    attachments,
     remindersEnabled,
     alarmEnabled,
     hasContent,
@@ -191,6 +195,7 @@ export default function TaskEditor() {
           : cur.endDate,
       linkedNoteIds: cur.linkedNoteIds,
       sections: cur.sections,
+      attachments: cur.attachments,
       remindersEnabled: cur.remindersEnabled,
       alarmEnabled: cur.alarmEnabled,
     };
@@ -268,6 +273,7 @@ export default function TaskEditor() {
           endDate: cur.endDate,
           linkedNoteIds: cur.linkedNoteIds,
           sections: cur.sections,
+          attachments: cur.attachments,
           remindersEnabled: cur.remindersEnabled,
           alarmEnabled: cur.alarmEnabled,
           createdAt: task?.createdAt ?? Date.now(),
@@ -322,6 +328,13 @@ export default function TaskEditor() {
     moveOccurrence(taskId, contextDate, target);
     router.back();
   };
+
+  /**
+   * Where this occurrence is being shown right now. For one that was already
+   * shifted, that is its destination — so "Shift to tomorrow" keeps moving it
+   * forward day by day instead of re-targeting the day it is already on.
+   */
+  const displayDate: DateKey = occState?.movedTo ?? contextDate;
 
   return (
     <KeyboardAvoidingView
@@ -403,7 +416,7 @@ export default function TaskEditor() {
                 label="Shift to tomorrow"
                 icon="arrow-forward-circle-outline"
                 variant="secondary"
-                onPress={() => moveTo(addDays(contextDate, 1))}
+                onPress={() => moveTo(addDays(displayDate, 1))}
                 style={{ flex: 1 }}
               />
               <Button
@@ -645,6 +658,8 @@ export default function TaskEditor() {
 
         <SectionsEditor sections={sections} onChange={setSections} />
 
+        <AttachmentsEditor attachments={attachments} onChange={setAttachments} />
+
         <LinkPicker
           label="Linked notes"
           emptyLabel="No notes to link yet."
@@ -732,7 +747,7 @@ export default function TaskEditor() {
 
       {showMove ? (
         <DateTimePicker
-          value={fromKey(contextDate)}
+          value={fromKey(displayDate)}
           mode="date"
           display={Platform.OS === 'ios' ? 'inline' : 'default'}
           onChange={(event, d) => {

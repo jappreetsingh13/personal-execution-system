@@ -1,73 +1,96 @@
 import React from 'react';
-import { Tabs } from 'expo-router';
+import { Dimensions } from 'react-native';
+import { TopTabs } from 'expo-router/js-top-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/theme/ThemeProvider';
+import { TabBar } from '@/components/TabBar';
 
+/** The navigator's option types bottom out in `any`, so spell the icon args out. */
+type IconArgs = { focused: boolean; color: string };
+
+/**
+ * The five tabs, as a pager.
+ *
+ * This is a material *top*-tab navigator pinned to the bottom, not a bottom-tab
+ * navigator, and the reason is the swipe. A bottom-tab navigator renders one
+ * scene at a time, so the old hand-rolled gesture could only wait for your
+ * finger to lift and then jump. A top-tab navigator renders its scenes in a
+ * pager — ViewPager2 on Android — so the content tracks your finger, the
+ * neighbouring tab is visible mid-drag, and the release settles with the same
+ * physics as every other Android app.
+ *
+ * Two consequences handled here:
+ *  - This navigator has no header options, so each screen renders its own
+ *    <TabHeader> (see src/components/TabHeader.tsx).
+ *  - The stock material bar is a top bar with an indicator, so the bar is ours
+ *    (see src/components/TabBar.tsx). Titles and icons are still declared per
+ *    screen below, exactly as they were.
+ *
+ * `backBehavior: 'none'` is load-bearing: without it the tab router swallows the
+ * Android back button to walk back through tab history, and back on a tab would
+ * never close the app.
+ */
 export default function TabsLayout() {
   const t = useTheme();
-  const insets = useSafeAreaInsets();
 
   return (
-    <Tabs
+    <TopTabs
+      tabBar={TabBar}
+      tabBarPosition="bottom"
+      backBehavior="none"
+      // Lets the pager lay its pages out correctly on the very first frame
+      // instead of measuring, which otherwise shows as a blank first paint.
+      initialLayout={{ width: Dimensions.get('window').width }}
       screenOptions={{
-        headerStyle: { backgroundColor: t.bg },
-        headerTintColor: t.text,
-        headerTitleStyle: { fontWeight: '800', fontSize: 19 },
-        headerShadowVisible: false,
-        tabBarActiveTintColor: t.tabActive,
-        tabBarInactiveTintColor: t.tabInactive,
-        tabBarStyle: {
-          backgroundColor: t.surface,
-          borderTopColor: t.border,
-          borderTopWidth: StyleSheet.hairlineWidth,
-          // Grow the bar by the gesture/nav-bar inset so the labels sit above
-          // the phone's own controls instead of underneath them.
-          height: 62 + insets.bottom,
-          paddingTop: 6,
-          paddingBottom: 8 + insets.bottom,
-        },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '700' },
         sceneStyle: { backgroundColor: t.bg },
+        swipeEnabled: true,
       }}
     >
-      <Tabs.Screen
+      <TopTabs.Screen
         name="index"
         options={{
           title: 'Notes',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="document-text-outline" size={size} color={color} />
+          tabBarIcon: ({ color }: IconArgs) => (
+            <Ionicons name="document-text-outline" size={23} color={color} />
           ),
         }}
       />
-      <Tabs.Screen
+      <TopTabs.Screen
         name="tasks"
         options={{
           title: 'Tasks',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="checkbox-outline" size={size} color={color} />
+          tabBarIcon: ({ color }: IconArgs) => (
+            <Ionicons name="checkbox-outline" size={23} color={color} />
           ),
         }}
       />
-      <Tabs.Screen
+      <TopTabs.Screen
+        name="sketch"
+        options={{
+          title: 'Sketch',
+          tabBarIcon: ({ color }: IconArgs) => (
+            <Ionicons name="color-palette-outline" size={23} color={color} />
+          ),
+        }}
+      />
+      <TopTabs.Screen
         name="stats"
         options={{
           title: 'Statistics',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="stats-chart-outline" size={size} color={color} />
+          tabBarIcon: ({ color }: IconArgs) => (
+            <Ionicons name="stats-chart-outline" size={23} color={color} />
           ),
         }}
       />
-      <Tabs.Screen
+      <TopTabs.Screen
         name="settings"
         options={{
           title: 'Settings',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="settings-outline" size={size} color={color} />
+          tabBarIcon: ({ color }: IconArgs) => (
+            <Ionicons name="settings-outline" size={23} color={color} />
           ),
         }}
       />
-    </Tabs>
+    </TopTabs>
   );
 }

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import type { DateKey } from '@/types';
 import { useTheme } from '@/theme/ThemeProvider';
-import { addDays, eachDay, fromKey, todayKey, WEEKDAY_SHORT } from '@/lib/date';
+import { addDays, eachDay, formatMonthLabel, fromKey, todayKey, WEEKDAY_SHORT } from '@/lib/date';
 
 const BEHIND = 30;
 const AHEAD = 60;
@@ -40,12 +40,28 @@ export function DateStrip({
   }, [selectedIndex]);
 
   return (
-    <ScrollView
-      ref={scrollRef}
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={{ paddingHorizontal: 16, gap: GAP }}
-    >
+    <View>
+      {/* The month of the day being viewed, so a strip of bare numbers always
+          has an anchor. Follows the selection, including calendar jumps. */}
+      <Text
+        style={{
+          color: t.textDim,
+          fontSize: 11.5,
+          fontWeight: '800',
+          letterSpacing: 1,
+          textTransform: 'uppercase',
+          paddingHorizontal: 20,
+          paddingBottom: 6,
+        }}
+      >
+        {formatMonthLabel(selected)}
+      </Text>
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 16, gap: GAP }}
+      >
       {days.map((day) => {
         const d = fromKey(day);
         const isToday = day === today;
@@ -106,6 +122,7 @@ export function DateStrip({
           </Pressable>
         );
       })}
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }

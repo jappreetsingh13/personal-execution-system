@@ -35,27 +35,69 @@ finishes, scan the QR **with your phone's camera** to download and install — A
 to allow installing from unknown sources. Grant the notification permission on first launch, or
 reminders and alarms cannot fire.
 
-## The four tabs
+## The five tabs
 
-**Notes** — 5 importance colours, search, importance filter, and accordion sections for links and
-references. No dates; a note stays until you delete it.
+**Notes** — 5 importance colours, search, importance filter, accordion sections for links and
+references, **multiple photo/file attachments**, and an **Import from file** button that pulls a
+.txt/.md/.docx document's whole content into the note body (the title starts at the first real
+letter, skipping leading markdown `###` decorations, and takes 35 characters when the note has no
+title yet). No dates; a note stays until you delete it.
 
 **Tasks** — a day view grouped by hour, so two tasks at 11am both sit against the 11 AM slot. Each
 task has a time, 5 importance colours, a **Start** button and a checkbox you can tick or untick at
 any hour, including days in the past. Repeat options: one time, every day, pick days (Mon–Fri),
-every other day, or hand-picked dates. The calendar icon jumps to any date; **Today keeps its
-filled highlight** while whichever day you're viewing is outlined, so you never lose your anchor.
+every other day, or hand-picked dates. A **mic button** next to the + FAB adds a task by voice, and
+the editor takes **multiple photos and file attachments**. The calendar icon jumps to any date;
+**Today keeps its filled highlight** while whichever day you're viewing is outlined, so you never
+lose your anchor.
+
+**Sketch** — a OneNote-style page that fills the screen, for finger or stylus. Freehand pen,
+straight lines, rectangles, ellipses and arrows in 6 colours, three stroke widths, undo. **Pinch to
+zoom** (double-tap to fit the width), two fingers to move the page, and the hand tool to move it
+with one. Paper can be **plain, ruled, grid or dots**, and the page **grows taller as you reach the
+bottom of it**, so you never run out of room mid-thought. Photos (screenshots included) drop
+anywhere, and once placed you can **drag them, resize them from the corner, and remove them** —
+pick one up with the Select tool or a long-press. Title, importance, links and delete live behind
+**Details** in the header, so the page itself stays uncluttered. Sketches list with pin, importance
+colours and a long-press menu like notes, and each sketch links to notes and tasks.
+
+**Stylus mode** (Page options → Stylus mode) is the one to turn on for a tablet with an S Pen or an
+Apple Pencil: only the pen marks the page, so you can rest your palm on it while you write, and
+fingers are left to move and zoom. Off by default, because on a phone the finger *is* the pen.
 
 **Statistics** — daily / weekly / monthly / yearly. One segmented bar split by status with the
 total and each count in numbers, three buttons that drill into a bucket grouped by date, and — on
-yearly — a 12-month stacked chart plus a per-month completion-rate table. Drill-down rows have live
-checkboxes, so ticking an old task updates the bar immediately.
+yearly — a 12-month stacked chart plus a per-month completion-rate table. **Monthly** adds month
+navigation (any month) and a drill-down: the month's report, then **Week 1–5** (week 5 holds the
+29th-onward tail only when it exists), then each week's dates, then a date's own report and
+tasks — the breadcrumb names month, week and date at every level. **Yearly** months are tappable
+and dive into the same drill-down. Drill-down rows have live checkboxes, so ticking an old task
+updates the bars immediately.
 
 **Settings** — 4 themes (Blossom, Midnight, Harbor, Daylight), alarm sound, notification sound,
-the daily-summary switch, and alarm reliability diagnostics.
+the daily-summary switch, the home-screen streak widget, and alarm reliability diagnostics.
+
+**Swipe left/right anywhere** moves between the five tabs. The tabs are a real pager — ViewPager2
+on Android — so the page tracks your finger, the next tab is visible while you drag, and letting go
+settles with the same physics as any other app. Vertical scrolling is untouched, and a horizontal
+drag on the Tasks date strip still scrolls dates rather than changing tab.
+
+**The back button goes back.** From a note, task or sketch it returns to the tab you came from, on
+the same date you were looking at. From a tab it closes the app, with no confirmation dialog in the
+way.
 
 ### Things worth knowing
 
+- **Tasks can be spoken.** The mic button on Tasks opens a sheet that transcribes live and parses
+  what it heard — filler ("remind me to"), a time ("at 5 pm") and "tomorrow" are pulled out into
+  the right fields, shown as chips for confirmation, then saved. Every parsed field stays editable
+  on the task afterwards. Speech recognition is native, so it needs the installed app; in Expo Go
+  the mic explains itself instead of crashing.
+- **Tasks take multiple attachments** (notes too). "Add photos" picks up to 10 images at once and
+  "Add files" picks any documents; both are *copied into app storage at pick time* (picker URIs are
+  revocable cache/content URIs, so a copy on day one is what makes the attachment survive). Images
+  get a thumbnail grid with a tap-to-zoom preview; other files open through the system viewer.
+  Deleting the record (or removing one attachment) deletes its copied files.
 - **Notes ↔ tasks are many-to-many**, editable from either side. The relation is stored on both
   records and mirrored on save (`syncLinksFromNote` / `syncLinksFromTask`) so the two copies cannot
   drift.
@@ -68,8 +110,13 @@ the daily-summary switch, and alarm reliability diagnostics.
 - **Shifting a task** records `movedTo` under the **original** date, so the day it came from is
   never lost — the moved row shows a "from 13 Sep" badge and can be undone. Reminders and the alarm
   move with it.
-- **Repeats can have an end date.** Start and end rows appear for every repeating kind; clearing the
-  end date means "forever". An end before the start is clamped rather than rejected.
+- **Start and end dates stay editable.** Repeats can have an end date; clearing it means "forever",
+  and an end before the start is clamped rather than rejected.
+- **Shift to tomorrow repeats.** Shifting an already-shifted occurrence moves it on from where it
+  is *shown* (its destination), not from its original date — so pressing it day after day keeps
+  walking the same instance forward, and the original date is never lost from the badge. The day
+  list always shifted this way; the editor computed from the original date and silently re-targeted
+  the day the task was already on.
 - **Daily check-ins** at 1:00 PM and 9:30 PM carry the live count of what is still unfinished, plus
   a Monday 8:00 AM note with last week's completion rate. Switch them off in Settings.
 - **Opening a task without a date** (from a note's linked chip) resolves to the day the task is
@@ -120,6 +167,33 @@ each one that is off:
 Alarms are armed **outside** the notification-permission gate. They are AlarmManager entries plus a
 foreground service, and have no business disappearing because notifications were declined — which
 is exactly what used to happen.
+
+## The streak widget
+
+A Duolingo-flavoured home-screen widget, built as a second local module at `modules/expo-widget/`
+(`StreakWidgetProvider` + `StreakWidgetModule`, Android only). It is sized as a **2×2** cell with
+a flame, the streak count, a **positive affirmation** that rotates every 4 hours, and a rounded
+"done today" progress bar; resizing is horizontal only, so it stretches to **3×2** and never
+changes height. The app adds it **once**: Settings fires the system pin dialog only while no
+instance is placed, and the module refuses a second pin — duplicates from the launcher's picker
+would just repeat the same numbers:
+
+| Piece | Why |
+| --- | --- |
+| `AppWidgetProvider` + RemoteViews | Widgets render outside the app process, so they must be native layouts — there is no JS in a widget. |
+| Numbers via SharedPreferences | JS computes the streak and today's progress and pushes them over the bridge; the widget only ever reads the last-pushed values, so it renders with no app process running. |
+| Message picked by wall clock | The catchy line is `MESSAGES[(now / 4h) % N]`, computed inside `onUpdate`. It rotates every 4 hours even if the app is never opened in between, and `updatePeriodMillis` (30 min floor) keeps the widget refreshing. |
+| Tap → launch intent | The whole widget is one pending intent back into the app. |
+
+The **streak** counts consecutive days with at least one completed task, ending today — or
+yesterday if today's first tick hasn't happened yet, so an unbroken streak is never shown as
+broken before midnight does its work. It is recomputed and pushed on launch, on every task
+change, and on foreground.
+
+Settings → *Home screen widget* asks the user to enable it: on Android 8+ it fires the system
+"add widget" pin dialog; the manual path (long-press → Widgets → Todos) is printed underneath
+either way. Like the alarm module, it is absent in Expo Go and the Settings entry hides itself
+there.
 
 ## Sounds and alarm timing
 
@@ -176,19 +250,39 @@ which is why previews stacked and only closing the app silenced them.
 
 ```
 app/                 expo-router routes
-  (tabs)/            the 4 tabs
+  (tabs)/            the 5 tabs, as a bottom-positioned pager (_layout.tsx)
   note/[id].tsx      note add / edit / delete
   task/[id].tsx      task add / edit / delete
+  sketch/[id].tsx    the full-screen sketch page
   alarm.tsx          full-screen ringer
 src/
   store/             zustand + AsyncStorage persistence
   theme/             4 palettes + provider
-  lib/               date, recurrence, status, notifications, channels, digest, export
-  components/        shared UI
+  lib/               date, recurrence, status, notifications, channels, digest, export,
+                     attachments, speech/voice parsing, widget sync, sketch pens + geometry
+  components/        shared UI (incl. TabBar / TabHeader for the pager)
+modules/
+  expo-task-alarm/   native AlarmManager alarms, channels, ringtone picker
+  expo-widget/       native home-screen streak widget
 assets/sounds/       4 synthesised tunes (swap the files to use your own)
 ```
 
-### Two decisions worth knowing
+### Decisions worth knowing
+
+**The tabs are a material *top*-tab navigator pinned to the bottom.** A bottom-tab navigator renders
+one scene at a time, so a swipe can only wait for your finger to lift and then jump — which is
+exactly what it used to do. A top-tab navigator renders its scenes in a pager, so it tracks the
+finger. Two consequences: it has no header options, so each tab screen draws its own `TabHeader`; and
+its stock bar is a top bar with an indicator, so the bottom bar is ours (`TabBar`). It also needs
+`backBehavior: 'none'`, or the tab router swallows Android back to walk through tab history and back
+on a tab could never close the app.
+
+**Sketch ink never reads `event.x`.** Android's gesture handler computes a pan's `x`/`y` as the
+*average of every active pointer* — `getLastPointerX(event, true)`, hardcoded, not the
+`averageTouches` option. With a palm on the screen that average sits between pen and palm, so ink
+would trail towards the hand. Strokes therefore follow a single latched pointer id out of
+`onTouchesMove`'s `allTouches`. For the same reason stylus mode drops `maxPointers(1)`: that check
+calls `cancel()` once a gesture is active, which is a resting palm killing the line mid-word.
 
 **Occurrences are computed, not stored.** A task's rule is saved once; which days it lands on is
 derived on demand. Only *deviations* from the default get persisted, keyed `taskId|YYYY-MM-DD`.

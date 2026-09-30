@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { router, useNavigation } from 'expo-router';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,6 +12,7 @@ import { useTheme } from '@/theme/ThemeProvider';
 import { EmptyState, Fab } from '@/components/ui';
 import { ImportanceFilter } from '@/components/ImportanceFilter';
 import { Sheet } from '@/components/Sheet';
+import { TabHeader, HeaderCount } from '@/components/TabHeader';
 import { useShareSheet } from '@/components/ShareSheet';
 import { formatRelativeDay, toKey } from '@/lib/date';
 import { noteDoc } from '@/lib/export';
@@ -19,7 +20,6 @@ import { noteDoc } from '@/lib/export';
 export default function NotesScreen() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
   const notes = useNotesStore((s) => s.notes);
   const deleteNote = useNotesStore((s) => s.deleteNote);
   const togglePinned = useNotesStore((s) => s.togglePinned);
@@ -71,20 +71,13 @@ export default function NotesScreen() {
     setMenuNote(note);
   };
 
-  React.useLayoutEffect(() => {
-    navigation.setOptions({
-      headerTitle: 'Notes',
-      headerRight: () => (
-        <Text style={{ color: t.textDim, fontSize: 13, fontWeight: '600', marginRight: 16 }}>
-          {visible.length}
-          {levels.size > 0 || query ? ` / ${Object.keys(notes).length}` : ''}
-        </Text>
-      ),
-    });
-  }, [navigation, notes, visible.length, levels.size, query, t]);
-
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
+      <TabHeader
+        title="Notes"
+        right={<HeaderCount shown={visible.length} total={Object.keys(notes).length} />}
+      />
+
       <View style={{ paddingHorizontal: 16, paddingBottom: 10 }}>
         <View
           style={{

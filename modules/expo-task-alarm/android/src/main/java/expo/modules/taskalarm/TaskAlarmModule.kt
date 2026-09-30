@@ -1,8 +1,10 @@
 package expo.modules.taskalarm
 
 import android.app.Activity
+import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ShortcutManager
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
@@ -364,5 +366,39 @@ class TaskAlarmModule : Module() {
       }
       runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
     }
+
+    // ---- Cleanup of the retired floating-note bubble -----------------------
+
+    /**
+     * Sweep what the removed bubble feature left on the device.
+     *
+     * The bubble was anchored to a *long-lived dynamic shortcut*, so it survives
+     * the app update on its own and would sit in the launcher's long-press menu
+     * forever pointing at a feature that no longer exists. Its posted
+     * notification outlives the update too. Deleting the Kotlin that created
+     * them does not remove them — only this does. The "bubbles" channel is swept
+     * separately, by `deleteChannelsExcept` in src/lib/channels.ts.
+     *
+     * Safe and cheap to call on every launch: both calls are no-ops once there
+     * is nothing left to remove.
+     */
+    Function("removeNoteBubble") {
+      runCatching {
+        context.getSystemService(NotificationManager::class.java)
+          ?.cancel(BUBBLE_NOTIFICATION_ID)
+      }
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
+        runCatching {
+          context.getSystemService(ShortcutManager::class.java)
+            ?.removeDynamicShortcuts(listOf(BUBBLE_SHORTCUT_ID))
+        }
+      }
+    }
+  }
+
+  private companion object {
+    /** Must keep matching what the deleted BubbleNote.kt used, or nothing is found. */
+    const val BUBBLE_NOTIFICATION_ID = 4242
+    const val BUBBLE_SHORTCUT_ID = "new-note-bubble"
   }
 }

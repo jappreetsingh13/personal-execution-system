@@ -2,18 +2,21 @@ import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from '
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { Importance, Section } from '@/types';
+import type { Attachment, Importance, Section } from '@/types';
 import { useNotesStore } from '@/store/useNotesStore';
 import { useTasksStore } from '@/store/useTasksStore';
 import { useTheme } from '@/theme/ThemeProvider';
 import { ColorPicker } from '@/components/ColorPicker';
 import { LinkPicker, type LinkOption } from '@/components/LinkPicker';
 import { SectionsEditor } from '@/components/Sections';
+import { AttachmentsEditor } from '@/components/Attachments';
 import { useShareSheet } from '@/components/ShareSheet';
 import { Button, Field, SectionTitle } from '@/components/ui';
 import { formatTime } from '@/lib/date';
 import { noteDoc } from '@/lib/export';
+import { readImportedDocument } from '@/lib/importDoc';
 import { defaultContextDate, describeRecurrence } from '@/lib/recurrence';
 
 export default function NoteEditor() {
@@ -36,6 +39,7 @@ export default function NoteEditor() {
   const [importance, setImportance] = useState<Importance>(note?.importance ?? 1);
   const [linkedTaskIds, setLinkedTaskIds] = useState<string[]>(note?.linkedTaskIds ?? []);
   const [sections, setSections] = useState<Section[]>(note?.sections ?? []);
+  const [attachments, setAttachments] = useState<Attachment[]>(note?.attachments ?? []);
 
   /** Suppresses the auto-save when leaving because the note was deleted. */
   const abandoned = useRef(false);
@@ -58,15 +62,16 @@ export default function NoteEditor() {
   const hasContent =
     title.trim().length > 0 ||
     body.trim().length > 0 ||
-    sections.some((s) => s.title.trim() || s.body.trim());
+    sections.some((s) => s.title.trim() || s.body.trim()) ||
+    attachments.length > 0;
 
   /**
    * Auto-save on the way out. Keeping this in a ref-read closure rather than a
    * dependency-tracked effect means the beforeRemove handler always sees the
    * latest field values without re-subscribing on every keystroke.
    */
-  const latest = useRef({ title, body, importance, linkedTaskIds, sections, hasContent });
-  latest.current = { title, body, importance, linkedTaskIds, sections, hasContent };
+  const latest = useRef({ title, body, importance, linkedTaskIds, sections, attachments, hasContent });
+  latest.current = { title, body, importance, linkedTaskIds, sections, attachments, hasContent };
 
   const persist = useCallback(() => {
     if (abandoned.current) return;
@@ -79,6 +84,7 @@ export default function NoteEditor() {
       importance: cur.importance,
       linkedTaskIds: cur.linkedTaskIds,
       sections: cur.sections,
+      attachments: cur.attachments,
     };
 
     let targetId: string;
@@ -126,6 +132,36 @@ export default function NoteEditor() {
 
   const share = useShareSheet();
 
+  /**
+   * Import a .txt/.md/.docx file: its whole content lands in the note body and
+   * nothing else is touched. The title picks up the first 35 characters — but
+   * only when the title is still empty, so an import never silently renames a
+   * note you had already named. Verify both after importing.
+   */
+  const importFromFile = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['text/*', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled || !result.assets?.length) return;
+
+      const { title: importedTitle, body } = await readImportedDocument(result.assets[0]);
+      setBody((cur) => (cur.trim() ? `${cur.trimEnd()}\n\n${body}` : body));
+      if (!title.trim()) setTitle(importedTitle);
+    } catch (err) {
+      const code = err instanceof Error ? err.message : '';
+      Alert.alert(
+        'Could not import',
+        code === 'UNSUPPORTED'
+          ? 'Only text files (.txt, .md) and Word documents (.docx) can be imported.'
+          : code === 'EMPTY'
+            ? 'That file has no readable text.'
+            : 'The file could not be read. Try exporting it as .txt or .docx.',
+      );
+    }
+  };
+
   /** Share what is on screen right now, not the last saved copy. */
   const openShare = useCallback(() => {
     const cur = latest.current;
@@ -138,6 +174,7 @@ export default function NoteEditor() {
           importance: cur.importance,
           linkedTaskIds: cur.linkedTaskIds,
           sections: cur.sections,
+          attachments: cur.attachments,
           createdAt: note?.createdAt ?? Date.now(),
           updatedAt: Date.now(),
         },
@@ -196,12 +233,43 @@ export default function NoteEditor() {
           multiline
         />
 
+        {/* Import — everything from the file goes into the body above. */}
+        <View style={{ gap: 8, marginTop: -10 }}>
+          <Pressable
+            onPress={() => void importFromFile()}
+            style={({ pressed }) => ({
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 8,
+              alignSelf: 'flex-start',
+              paddingHorizontal: 13,
+              paddingVertical: 10,
+              borderRadius: 10,
+              borderWidth: 1,
+              borderColor: t.border,
+              backgroundColor: t.surfaceAlt,
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <Ionicons name="download-outline" size={16} color={t.accent} />
+            <Text style={{ color: t.text, fontWeight: '700', fontSize: 13.5 }}>
+              Import from file
+            </Text>
+          </Pressable>
+          <Text style={{ color: t.textDim, fontSize: 12, lineHeight: 17 }}>
+            .txt, .md or .docx — all of the content goes into the note body, and the title takes
+            the first 35 characters when the note has none yet.
+          </Text>
+        </View>
+
         <View style={{ gap: 10 }}>
           <SectionTitle>Importance</SectionTitle>
           <ColorPicker value={importance} onChange={setImportance} />
         </View>
 
         <SectionsEditor sections={sections} onChange={setSections} />
+
+        <AttachmentsEditor attachments={attachments} onChange={setAttachments} />
 
         <LinkPicker
           label="Linked tasks"

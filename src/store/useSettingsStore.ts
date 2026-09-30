@@ -18,6 +18,12 @@ type SettingsState = {
   notificationSoundLabel: string | null;
   /** Daily 1pm / 9:30pm digests and the Monday statistics nudge. */
   digestsEnabled: boolean;
+  /**
+   * Sketch palm rejection: only a stylus draws, fingers pan and zoom.
+   * A device setting rather than a per-sketch one — it describes what you are
+   * holding, not what you are drawing. Off by default so a phone is unaffected.
+   */
+  sketchStylusOnly: boolean;
   /** Set once the OS notification permission has been granted. */
   notificationsGranted: boolean;
   /** False until AsyncStorage has been read back — the root layout waits on it. */
@@ -30,6 +36,7 @@ type SettingsState = {
   setAlarmSound: (uri: string | null, label: string | null) => void;
   setNotificationSound: (uri: string | null, label: string | null) => void;
   setDigestsEnabled: (enabled: boolean) => void;
+  setSketchStylusOnly: (only: boolean) => void;
   setNotificationsGranted: (granted: boolean) => void;
   setHydrated: () => void;
 };
@@ -45,6 +52,7 @@ export const useSettingsStore = create<SettingsState>()(
       notificationSoundUri: null,
       notificationSoundLabel: null,
       digestsEnabled: true,
+      sketchStylusOnly: false,
       notificationsGranted: false,
       hydrated: false,
 
@@ -59,6 +67,7 @@ export const useSettingsStore = create<SettingsState>()(
       setNotificationSound: (notificationSoundUri, notificationSoundLabel) =>
         set({ notificationSoundUri, notificationSoundLabel }),
       setDigestsEnabled: (digestsEnabled) => set({ digestsEnabled }),
+      setSketchStylusOnly: (sketchStylusOnly) => set({ sketchStylusOnly }),
       setNotificationsGranted: (notificationsGranted) => set({ notificationsGranted }),
       setHydrated: () => set({ hydrated: true }),
     }),
@@ -75,6 +84,7 @@ export const useSettingsStore = create<SettingsState>()(
         notificationSoundUri,
         notificationSoundLabel,
         digestsEnabled,
+        sketchStylusOnly,
         notificationsGranted,
       }) => ({
         theme,
@@ -85,6 +95,7 @@ export const useSettingsStore = create<SettingsState>()(
         notificationSoundUri,
         notificationSoundLabel,
         digestsEnabled,
+        sketchStylusOnly,
         notificationsGranted,
       }),
       onRehydrateStorage: () => (state) => state?.setHydrated(),

@@ -1,18 +1,20 @@
-import React, { useLayoutEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, Text, View } from 'react-native';
-import { router, useLocalSearchParams, useNavigation } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { DateKey, Importance, Occurrence } from '@/types';
-import { useTasksStore } from '@/store/useTasksStore';
+import { useTasksStore, type TaskDraft } from '@/store/useTasksStore';
 import { useNotesStore } from '@/store/useNotesStore';
 import { useTheme } from '@/theme/ThemeProvider';
 import { DateStrip } from '@/components/DateStrip';
 import { DayTimeline } from '@/components/DayTimeline';
 import { ImportanceFilter } from '@/components/ImportanceFilter';
 import { Sheet } from '@/components/Sheet';
+import { TabHeader } from '@/components/TabHeader';
+import { VoiceTaskSheet } from '@/components/VoiceTaskSheet';
 import { useShareSheet } from '@/components/ShareSheet';
 import { EmptyState, Fab } from '@/components/ui';
 import { STATUS_COLORS } from '@/theme/themes';
@@ -23,7 +25,6 @@ import { useDayOccurrences, useMarkedDates, useNow } from '@/lib/useOccurrences'
 export default function TasksScreen() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
   const params = useLocalSearchParams<{ date?: string }>();
   const now = useNow();
 
@@ -38,6 +39,7 @@ export default function TasksScreen() {
   const toggleDone = useTasksStore((s) => s.toggleDone);
   const toggleStarted = useTasksStore((s) => s.toggleStarted);
   const deleteTask = useTasksStore((s) => s.deleteTask);
+  const addTask = useTasksStore((s) => s.addTask);
   const moveOccurrence = useTasksStore((s) => s.moveOccurrence);
   const unlinkTask = useNotesStore((s) => s.unlinkTask);
   const notes = useNotesStore((s) => s.notes);
@@ -55,22 +57,6 @@ export default function TasksScreen() {
     const done = occurrences.filter((o) => o.status === 'done').length;
     return { done, total: occurrences.length };
   }, [occurrences]);
-
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerTitle: 'Tasks',
-      headerRight: () => (
-        <Pressable
-          onPress={() => setShowPicker(true)}
-          hitSlop={10}
-          style={{ marginRight: 16 }}
-          accessibilityLabel="Open calendar"
-        >
-          <Ionicons name="calendar-outline" size={22} color={t.accent} />
-        </Pressable>
-      ),
-    });
-  }, [navigation, t]);
 
   const openTask = (o: Occurrence) =>
     router.push({ pathname: '/task/[id]', params: { id: o.task.id, date: o.stateDate } });
@@ -103,8 +89,29 @@ export default function TasksScreen() {
 
   const isToday = selected === today;
 
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  /** A spoken task jumps the view to the day it landed on, so it is visible immediately. */
+  const addFromVoice = (draft: TaskDraft, dateKey: string) => {
+    addTask(draft);
+    setVoiceOpen(false);
+    setSelected(dateKey);
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
+      <TabHeader
+        title="Tasks"
+        right={
+          <Pressable
+            onPress={() => setShowPicker(true)}
+            hitSlop={10}
+            accessibilityLabel="Open calendar"
+          >
+            <Ionicons name="calendar-outline" size={22} color={t.accent} />
+          </Pressable>
+        }
+      />
+
       <DateStrip selected={selected} onSelect={setSelected} markedDates={markedDates} />
 
       <View style={{ paddingTop: 12, paddingBottom: 10 }}>
@@ -197,6 +204,35 @@ export default function TasksScreen() {
       <Fab
         onPress={() => router.push({ pathname: '/task/[id]', params: { id: 'new', date: selected } })}
       />
+
+      {/* Voice add — a smaller sibling of the main FAB. */}
+      <Pressable
+        onPress={() => setVoiceOpen(true)}
+        accessibilityLabel="Add a task by voice"
+        style={({ pressed }) => ({
+          position: 'absolute',
+          right: 24,
+          bottom: 94 + insets.bottom,
+          width: 48,
+          height: 48,
+          borderRadius: 24,
+          backgroundColor: t.surface,
+          borderWidth: 1,
+          borderColor: t.border,
+          alignItems: 'center',
+          justifyContent: 'center',
+          transform: [{ scale: pressed ? 0.93 : 1 }],
+          elevation: 4,
+          shadowColor: '#000',
+          shadowOpacity: 0.16,
+          shadowRadius: 6,
+          shadowOffset: { width: 0, height: 3 },
+        })}
+      >
+        <Ionicons name="mic-outline" size={23} color={t.accent} />
+      </Pressable>
+
+      <VoiceTaskSheet visible={voiceOpen} onClose={() => setVoiceOpen(false)} onAdd={addFromVoice} />
 
       <Sheet
         visible={menu != null}
